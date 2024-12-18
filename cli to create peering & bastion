@@ -1,0 +1,94 @@
+Here’s how you can set up **VPC Peering** and **Bastion Host** using both **AWS CLI** and **Terraform**.
+
+---
+
+## **1. VPC Peering Setup**
+
+### **Using AWS CLI**
+#### **1.1 Create Two VPCs**
+```bash
+aws ec2 create-vpc --cidr-block 10.0.0.0/16 --region us-east-1
+aws ec2 create-vpc --cidr-block 192.168.0.0/16 --region us-east-1
+```
+Save the `VpcId` from both commands.
+
+#### **1.2 Create a Peering Connection**
+```bash
+aws ec2 create-vpc-peering-connection \
+  --vpc-id <Requester-VPC-ID> \
+  --peer-vpc-id <Accepter-VPC-ID> \
+  --region us-east-1
+```
+Save the `VpcPeeringConnectionId` from the output.
+
+#### **1.3 Accept the Peering Request**
+```bash
+aws ec2 accept-vpc-peering-connection --vpc-peering-connection-id <VpcPeeringConnectionId>
+```
+
+#### **1.4 Update Route Tables**
+For the **Requester VPC**:
+```bash
+aws ec2 create-route \
+  --route-table-id <RouteTableID-Requester> \
+  --destination-cidr-block 192.168.0.0/16 \
+  --vpc-peering-connection-id <VpcPeeringConnectionId>
+```
+
+For the **Accepter VPC**:
+```bash
+aws ec2 create-route \
+  --route-table-id <RouteTableID-Accepter> \
+  --destination-cidr-block 10.0.0.0/16 \
+  --vpc-peering-connection-id <VpcPeeringConnectionId>
+```
+
+---
+
+
+## **2. Bastion Host Setup**
+
+### **Using AWS CLI**
+#### **2.1 Create Subnets**
+```bash
+aws ec2 create-subnet --vpc-id <VpcId> --cidr-block 10.0.1.0/24
+aws ec2 create-subnet --vpc-id <VpcId> --cidr-block 10.0.2.0/24
+```
+
+#### **2.2 Launch Bastion Host**
+```bash
+aws ec2 run-instances \
+  --image-id ami-0c02fb55956c7d316 \
+  --count 1 \
+  --instance-type t2.micro \
+  --key-name my-key-pair \
+  --subnet-id <Public-Subnet-ID> \
+  --associate-public-ip-address \
+  --security-group-ids <SG-ID-Bastion>
+```
+
+#### **2.3 Launch Private Instance**
+```bash
+aws ec2 run-instances \
+  --image-id ami-0c02fb55956c7d316 \
+  --count 1 \
+  --instance-type t2.micro \
+  --key-name my-key-pair \
+  --subnet-id <Private-Subnet-ID> \
+  --security-group-ids <SG-ID-Private>
+```
+
+#### **2.4 Connect via SSH**
+From your local machine:
+```bash
+ssh -i my-key.pem ec2-user@<Bastion-Public-IP>
+```
+
+From the Bastion Host:
+```bash
+ssh -i my-key.pem ec2-user@<Private-Instance-Private-IP>
+```
+
+---
+
+
